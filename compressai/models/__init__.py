@@ -14,4 +14,5 @@
 
 
 from .stf import SymmetricalTransFormer
+from .cstf_simple import SymmetricalTransFormer_cswin_simple
 from .cnn import WACNN
