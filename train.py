@@ -28,14 +28,44 @@ from torchvision import transforms
 from compressai.datasets import ImageFolder
 from compressai.zoo import models
 
+from tqdm import tqdm
+from pytorch_msssim import ms_ssim
+
+# class RateDistortionLoss(nn.Module):
+#     """Custom rate distortion loss with a Lagrangian parameter."""
+
+#     def __init__(self, lmbda=1e-2):
+#         super().__init__()
+#         self.mse = nn.MSELoss()
+#         self.lmbda = lmbda
+
+#     def forward(self, output, target):
+#         N, _, H, W = target.size()
+#         out = {}
+#         num_pixels = N * H * W
+
+#         out["bpp_loss"] = sum(
+#             (torch.log(likelihoods).sum() / (-math.log(2) * num_pixels))
+#             for likelihoods in output["likelihoods"].values()
+#         )
+#         out["mse_loss"] = self.mse(output["x_hat"], target)
+#         out["loss"] = self.lmbda * 255 ** 2 * out["mse_loss"] + out["bpp_loss"]
+
+#         return out
 
 class RateDistortionLoss(nn.Module):
     """Custom rate distortion loss with a Lagrangian parameter."""
 
-    def __init__(self, lmbda=1e-2):
+    def __init__(self, lmbda=0.01, metric="mse", return_type="all"):
         super().__init__()
-        self.mse = nn.MSELoss()
+        if metric == "mse":
+            self.metric = nn.MSELoss()
+        elif metric == "ms-ssim":
+            self.metric = ms_ssim
+        else:
+            raise NotImplementedError(f"{metric} is not implemented!")
         self.lmbda = lmbda
+        self.return_type = return_type
 
     def forward(self, output, target):
         N, _, H, W = target.size()
@@ -46,10 +76,18 @@ class RateDistortionLoss(nn.Module):
             (torch.log(likelihoods).sum() / (-math.log(2) * num_pixels))
             for likelihoods in output["likelihoods"].values()
         )
-        out["mse_loss"] = self.mse(output["x_hat"], target)
-        out["loss"] = self.lmbda * 255 ** 2 * out["mse_loss"] + out["bpp_loss"]
+        if self.metric == ms_ssim:
+            out["ms_ssim_loss"] = self.metric(output["x_hat"], target, data_range=1)
+            distortion = 1 - out["ms_ssim_loss"]
+        else:
+            out["mse_loss"] = self.metric(output["x_hat"], target)
+            distortion = 255**2 * out["mse_loss"]
 
-        return out
+        out["loss"] = self.lmbda * distortion + out["bpp_loss"]
+        if self.return_type == "all":
+            return out
+        else:
+            return out[self.return_type]
 
 
 class AverageMeter:
@@ -137,15 +175,26 @@ def train_one_epoch(
         aux_optimizer.step()
 
         if i % 100 == 0:
-            print(
-                f"Train epoch {epoch}: ["
-                f"{i*len(d)}/{len(train_dataloader.dataset)}"
-                f" ({100. * i / len(train_dataloader):.0f}%)]"
-                f'\tLoss: {out_criterion["loss"].item():.3f} |'
-                f'\tMSE loss: {out_criterion["mse_loss"].item() * 255 ** 2 / 3:.3f} |'
-                f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
-                f"\tAux loss: {aux_loss.item():.2f}"
-            )
+            if criterion.metric == "mse":
+                print(
+                    f"Train epoch {epoch}: ["
+                    f"{i*len(d)}/{len(train_dataloader.dataset)}"
+                    f" ({100. * i / len(train_dataloader):.0f}%)]"
+                    f'\tLoss: {out_criterion["loss"].item():.3f} |'
+                    f'\tMSE loss: {out_criterion["mse_loss"].item() * 255 ** 2 / 3:.3f} |'
+                    f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
+                    f"\tAux loss: {aux_loss.item():.2f}"
+                )
+            else:
+                print(
+                    f"Train epoch {epoch}: ["
+                    f"{i*len(d)}/{len(train_dataloader.dataset)}"
+                    f" ({100. * i / len(train_dataloader):.0f}%)]"
+                    f'\tLoss: {out_criterion["loss"].item():.3f} |'
+                    f'\tMS-SSIM loss: {out_criterion["ms_ssim_loss"].item():.3f} |'
+                    f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
+                    f"\tAux loss: {aux_loss.item():.2f}"
+                )
 
 
 def test_epoch(epoch, test_dataloader, model, criterion):
@@ -154,7 +203,7 @@ def test_epoch(epoch, test_dataloader, model, criterion):
 
     loss = AverageMeter()
     bpp_loss = AverageMeter()
-    mse_loss = AverageMeter()
+    crit_loss = AverageMeter()
     aux_loss = AverageMeter()
 
     with torch.no_grad():
@@ -166,12 +215,16 @@ def test_epoch(epoch, test_dataloader, model, criterion):
             aux_loss.update(model.aux_loss())
             bpp_loss.update(out_criterion["bpp_loss"])
             loss.update(out_criterion["loss"])
-            mse_loss.update(out_criterion["mse_loss"])
+            if criterion.metric == "mse":
+                crit_loss.update(out_criterion["mse_loss"])
+            else:
+                crit_loss.update(out_criterion["ms_ssim_loss"])
 
     print(
         f"Test epoch {epoch}: Average losses:"
         f"\tLoss: {loss.avg:.3f} |"
-        f"\tMSE loss: {mse_loss.avg * 255 ** 2 / 3:.3f} |"
+        # f"\tMSE loss: {mse_loss.avg * 255 ** 2 / 3:.3f} |"
+        f"\tCrit loss: {crit_loss.avg:.3f} |"
         f"\tBpp loss: {bpp_loss.avg:.2f} |"
         f"\tAux loss: {aux_loss.avg:.2f}\n"
     )
@@ -216,6 +269,13 @@ def parse_args(argv):
         type=int,
         default=30,
         help="Dataloaders threads (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--loss",
+        dest="loss",
+        type=str,
+        default="mse",
+        help="Criterion Loss Function (default: %(default)s)",
     )
     parser.add_argument(
         "--lambda",
@@ -311,7 +371,7 @@ def main(argv):
 
     optimizer, aux_optimizer = configure_optimizers(net, args)
     lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min", factor=0.3, patience=4)
-    criterion = RateDistortionLoss(lmbda=args.lmbda)
+    criterion = RateDistortionLoss(lmbda=args.lmbda, metric=args.loss, return_type="all")
 
     last_epoch = 0
     if args.checkpoint:  # load from previous checkpoint
@@ -325,7 +385,7 @@ def main(argv):
         lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
 
     best_loss = float("inf")
-    for epoch in range(last_epoch, args.epochs):
+    for epoch in tqdm(range(last_epoch, args.epochs)):
         print(f"Learning rate: {optimizer.param_groups[0]['lr']}")
         train_one_epoch(
             net,
