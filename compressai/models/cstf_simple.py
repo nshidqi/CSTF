@@ -11,7 +11,7 @@ from compressai.ans import BufferedRansEncoder, RansDecoder
 from compressai.layers import conv3x3, subpel_conv3x3
 from compressai.ops import ste_round
 from .base import CompressionModel
-
+from .cswin import CSWinBlock 
 # From Balle's tensorflow compression examples
 SCALES_MIN = 0.11
 SCALES_MAX = 256
@@ -198,6 +198,22 @@ class SwinTransformerBlock(nn.Module):
 
         return x
 
+class Merge_Block(nn.Module):
+    def __init__(self, dim, dim_out, norm_layer=nn.LayerNorm):
+        super().__init__()
+        self.conv = nn.Conv2d(dim, dim_out, 3, 2, 1)
+        self.norm = norm_layer(dim_out)
+
+    def forward(self, x):
+        B, new_HW, C = x.shape
+        H = W = int(np.sqrt(new_HW))
+        x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
+        x = self.conv(x)
+        B, C = x.shape[:2]
+        x = x.view(B, C, -1).transpose(-2, -1).contiguous()
+        x = self.norm(x)
+        
+        return x
 
 class PatchMerging(nn.Module):
     def __init__(self, dim, norm_layer=nn.LayerNorm):
@@ -259,10 +275,11 @@ class PatchSplit(nn.Module):
         x = x.permute(0, 2, 3, 1).contiguous().view(B, 4 * L, -1)
         return x
 
-class BasicLayer(nn.Module):
+class BasicLayer_cswin(nn.Module):
     def __init__(self,
                  dim,
                  depth,
+                 split_size,
                  num_heads,
                  window_size=7,
                  mlp_ratio=4.,
@@ -274,7 +291,10 @@ class BasicLayer(nn.Module):
                  norm_layer=nn.LayerNorm,
                  downsample=None,
                  use_checkpoint=False,
-                 inverse=False):
+                 inverse=False,
+                 reso=1,
+                 last_stage=False
+                 ):
         super().__init__()
         self.window_size = window_size
         self.shift_size = window_size // 2
@@ -283,21 +303,21 @@ class BasicLayer(nn.Module):
 
         # build blocks
         self.blocks = nn.ModuleList([
-            SwinTransformerBlock(
-
+            CSWinBlock(
                 dim=dim,
                 num_heads=num_heads,
-                window_size=window_size,
-                shift_size=0 if (i % 2 == 0) else window_size // 2,
+                reso=reso,
                 mlp_ratio=mlp_ratio,
                 qkv_bias=qkv_bias,
                 qk_scale=qk_scale,
+                split_size=split_size,
                 drop=drop,
                 attn_drop=attn_drop,
                 drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                norm_layer=norm_layer,
-                inverse=inverse)
-            for i in range(depth)])
+                norm_layer=norm_layer, 
+                last_stage=last_stage
+            ) for i in range(depth)
+        ])
 
         # patch merging layer
         if downsample is not None:
@@ -313,29 +333,29 @@ class BasicLayer(nn.Module):
         """
 
         # calculate attention mask for SW-MSA
-        Hp = int(np.ceil(H / self.window_size)) * self.window_size
-        Wp = int(np.ceil(W / self.window_size)) * self.window_size
-        img_mask = torch.zeros((1, Hp, Wp, 1), device=x.device)
-        h_slices = (slice(0, -self.window_size),
-                    slice(-self.window_size, -self.shift_size),
-                    slice(-self.shift_size, None))
-        w_slices = (slice(0, -self.window_size),
-                    slice(-self.window_size, -self.shift_size),
-                    slice(-self.shift_size, None))
-        cnt = 0
-        for h in h_slices:
-            for w in w_slices:
-                img_mask[:, h, w, :] = cnt
-                cnt += 1
+        # Hp = int(np.ceil(H / self.window_size)) * self.window_size
+        # Wp = int(np.ceil(W / self.window_size)) * self.window_size
+        # img_mask = torch.zeros((1, Hp, Wp, 1), device=x.device)
+        # h_slices = (slice(0, -self.window_size),
+        #             slice(-self.window_size, -self.shift_size),
+        #             slice(-self.shift_size, None))
+        # w_slices = (slice(0, -self.window_size),
+        #             slice(-self.window_size, -self.shift_size),
+        #             slice(-self.shift_size, None))
+        # cnt = 0
+        # for h in h_slices:
+        #     for w in w_slices:
+        #         img_mask[:, h, w, :] = cnt
+        #         cnt += 1
 
-        mask_windows = window_partition(img_mask, self.window_size)  # nW, window_size, window_size, 1
-        mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
-        attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
-        attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
+        # mask_windows = window_partition(img_mask, self.window_size)  # nW, window_size, window_size, 1
+        # mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
+        # attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
+        # attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
 
         for blk in self.blocks:
-            blk.H, blk.W = H, W
-            x = blk(x, attn_mask)
+            # blk.H, blk.W = H, W
+            x = blk(x)
         if self.downsample is not None:
             x_down = self.downsample(x, H, W)
             if isinstance(self.downsample, PatchMerging):
@@ -345,8 +365,6 @@ class BasicLayer(nn.Module):
             return x_down, Wh, Ww
         else:
             return x, H, W
-
-
 class PatchEmbed(nn.Module):
     def __init__(self, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
         super().__init__()
@@ -381,14 +399,15 @@ class PatchEmbed(nn.Module):
         return x
 
 
-class SymmetricalTransFormer(CompressionModel):
+class SymmetricalTransFormer_cswin_simple(CompressionModel):
     def __init__(self,
                  pretrain_img_size=256,
                  patch_size=2,
                  in_chans=3,
                  embed_dim=48,
-                 depths=[2, 2, 6, 2],
-                 num_heads=[3, 6, 12, 24],
+                 split_sizes=[1,2,4,4],
+                 depths=[1, 2, 21, 1],
+                 num_heads=[2, 4, 8, 16],
                  window_size=4,
                  num_slices=12,
                  mlp_ratio=4.,
@@ -423,9 +442,10 @@ class SymmetricalTransFormer(CompressionModel):
         # build layers
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
-            layer = BasicLayer(
+            layer = BasicLayer_cswin(
                 dim=int(embed_dim * 2 ** i_layer),
                 depth=depths[i_layer],
+                split_size=split_sizes[i_layer],
                 num_heads=num_heads[i_layer],
                 window_size=window_size,
                 mlp_ratio=mlp_ratio,
@@ -437,16 +457,20 @@ class SymmetricalTransFormer(CompressionModel):
                 norm_layer=norm_layer,
                 downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
                 use_checkpoint=use_checkpoint,
-                inverse=False)
+                inverse=False,
+                reso=(pretrain_img_size//patch_size)//(2**i_layer),
+                last_stage=False # (len(depths)==(i_layer+1))
+                )
             self.layers.append(layer)
 
         depths = depths[::-1]
         num_heads = num_heads[::-1]
         self.syn_layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
-            layer = BasicLayer(
+            layer = BasicLayer_cswin(
                 dim=int(embed_dim * 2 ** (3-i_layer)),
                 depth=depths[i_layer],
+                split_size=split_sizes[i_layer],
                 num_heads=num_heads[i_layer],
                 window_size=window_size,
                 mlp_ratio=mlp_ratio,
@@ -458,7 +482,10 @@ class SymmetricalTransFormer(CompressionModel):
                 norm_layer=norm_layer,
                 downsample=PatchSplit if (i_layer < self.num_layers - 1) else None,
                 use_checkpoint=use_checkpoint,
-                inverse=True)
+                inverse=True,
+                reso=(pretrain_img_size//patch_size)//(2**(3-i_layer)),
+                last_stage= False # (len(depths)==(i_layer+1))
+                )
             self.syn_layers.append(layer)
 
         self.end_conv = nn.Sequential(nn.Conv2d(embed_dim, embed_dim * patch_size ** 2, kernel_size=5, stride=1, padding=2),
@@ -581,14 +608,19 @@ class SymmetricalTransFormer(CompressionModel):
 
     def forward(self, x):
         """Forward function."""
-        x = self.patch_embed(x)
+        
+        ##### Encoder #####
+        x = self.patch_embed(x) # x : (B, C, H, W)
 
         Wh, Ww = x.size(2), x.size(3)
-        x = x.flatten(2).transpose(1, 2)
-        x = self.pos_drop(x)
-        for i in range(self.num_layers):
-            layer = self.layers[i]
-            x, Wh, Ww = layer(x, Wh, Ww)
+        x = x.flatten(2).transpose(1, 2) # x : (B, H * W, C)  # flatten(start dim = 2)
+        x = self.pos_drop(x) # drop_out
+        for i in range(self.num_layers): # num_layer -> len(depths) -> len([2,2,6,2]) 
+            #layer[0]-> BasicLayer -> (Transformer block * n + patch_merging)
+            layer = self.layers[i] 
+            x, Wh, Ww = layer(x, Wh, Ww) 
+        
+        ##### after encoder part #####
 
         y = x
         C = self.embed_dim * 8
@@ -634,11 +666,14 @@ class SymmetricalTransFormer(CompressionModel):
         y_likelihoods = torch.cat(y_likelihood, dim=1)
 
         y_hat = y_hat.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, C)
+        
+        ##### Decoder #####
         for i in range(self.num_layers):
             layer = self.syn_layers[i]
             y_hat, Wh, Ww = layer(y_hat, Wh, Ww)
 
         x_hat = self.end_conv(y_hat.view(-1, Wh, Ww, self.embed_dim).permute(0, 3, 1, 2).contiguous())
+        ####################
         return {
             "x_hat": x_hat,
             "likelihoods": {"y": y_likelihoods, "z": z_likelihoods},
