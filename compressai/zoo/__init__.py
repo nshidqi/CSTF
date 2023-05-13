@@ -17,11 +17,13 @@ from compressai.models import SymmetricalTransFormer, WACNN
 
 #### added ####
 from compressai.models import SymmetricalTransFormer_cswin_simple
+from compressai.models import SymmetricalTransFormer_cswin_general
 
 from .pretrained import load_pretrained as load_state_dict
 
 models = {
     'stf': SymmetricalTransFormer,
     'cstf_simple': SymmetricalTransFormer_cswin_simple,
+    'cstf_general': SymmetricalTransFormer_cswin_general,
     'cnn': WACNN,
 }
