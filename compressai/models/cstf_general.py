@@ -354,7 +354,7 @@ class BasicLayer_cswin(nn.Module):
         # attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
 
         for blk in self.blocks:
-            # blk.H, blk.W = H, W
+            blk.H_resolution, blk.W_resolution = H, W
             x = blk(x)
         if self.downsample is not None:
             x_down = self.downsample(x, H, W)
