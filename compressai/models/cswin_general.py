@@ -69,17 +69,25 @@ class LePEAttention(nn.Module):
         head_dim = dim // num_heads
         # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
         self.scale = qk_scale or head_dim ** -0.5
-        if idx == -1:
-            H_sp, W_sp = self.resolution, self.resolution
-        elif idx == 0:
-            H_sp, W_sp = self.resolution, self.split_size
-        elif idx == 1:
-            W_sp, H_sp = self.resolution, self.split_size
-        else:
-            print ("ERROR MODE", idx)
-            exit(0)
-        self.H_sp = H_sp
-        self.W_sp = W_sp
+        
+        ###### resolutions can be dynamically assigned ######
+        self.H_resolution = None
+        self.W_resolution = None
+
+        self.idx = idx
+        ###### resolution should be changed -> H_resolution, W_resolution ######
+        # if idx == -1: # no branch (last stage)
+        #     H_sp, W_sp = self.resolution, self.resolution
+        # elif idx == 0: # first branch (vertical window attention)
+        #     H_sp, W_sp = self.resolution, self.split_size
+        # elif idx == 1: # second branch (horizontal window attention)
+        #     W_sp, H_sp = self.resolution, self.split_size
+        ####################################################################### 
+        # else:
+        #     print ("ERROR MODE", idx)
+        #     exit(0)
+        self.H_sp = None
+        self.W_sp = None
         stride = 1
         self.get_v = nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=1,groups=dim)
 
@@ -112,8 +120,19 @@ class LePEAttention(nn.Module):
         """
         x: B L C
         """
+        ####
+        if self.idx == -1: # no branch (last stage)
+            self.H_sp, self.W_sp = self.H_resolution, self.W_resolution
+        elif self.idx == 0: # first branch (vertical window attention)
+            self.H_sp, self.W_sp = self.H_resolution, self.split_size
+        elif self.idx == 1: # second branch (horizontal window attention)
+            self.W_sp, self.H_sp = self.W_resolution, self.split_size
+        else:
+            print ("ERROR MODE", self.idx)
+            exit(0)
+        #####
         q,k,v = qkv[0], qkv[1], qkv[2]
-
+        
         ### Img2Window
         H = W = self.resolution
         B, L, C = q.shape
@@ -152,6 +171,9 @@ class CSWinBlock(nn.Module):
         self.mlp_ratio = mlp_ratio
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.norm1 = norm_layer(dim)
+        
+        self.H_resolution = None
+        self.W_resolution = None
 
         if self.patches_resolution == split_size:
             last_stage = True
@@ -189,15 +211,21 @@ class CSWinBlock(nn.Module):
         x: B, H*W, C
         """
 
-        H = W = self.patches_resolution
+        # H = W = self.patches_resolution
         # print("H, W", H, W)
         B, L, C = x.shape
         # print("x.shape", x.shape)
-        assert L == H * W, "flatten img_tokens has wrong size"
+        assert L == self.H_resolution * self.W_resolution, "flatten img_tokens has wrong size"
         img = self.norm1(x)
         qkv = self.qkv(img).reshape(B, -1, 3, C).permute(2, 0, 1, 3)
         
         if self.branch_num == 2:
+            ###### 
+            self.attns[0].H_resolution = self.H_resolution
+            self.attns[0].W_resolution = self.W_resolution
+            self.attns[1].H_resolution = self.H_resolution
+            self.attns[1].W_resolution = self.W_resolution
+            ######
             x1 = self.attns[0](qkv[:,:,:,:C//2])
             x2 = self.attns[1](qkv[:,:,:,C//2:])
             attened_x = torch.cat([x1,x2], dim=2)
