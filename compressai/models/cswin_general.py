@@ -95,7 +95,12 @@ class LePEAttention(nn.Module):
 
     def im2cswin(self, x):
         B, N, C = x.shape
-        H = W = int(np.sqrt(N))
+        # print ("x.shape", x.shape)
+        # H = W = int(np.sqrt(N))
+        H = self.H_resolution
+        W = self.W_resolution
+        # print ("H, W", H, W)
+        # assert False, "Not implemented yet"
         x = x.transpose(-2,-1).contiguous().view(B, C, H, W)
         x = img2windows(x, self.H_sp, self.W_sp)
         x = x.reshape(-1, self.H_sp* self.W_sp, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3).contiguous()
@@ -103,7 +108,9 @@ class LePEAttention(nn.Module):
 
     def get_lepe(self, x, func):
         B, N, C = x.shape
-        H = W = int(np.sqrt(N))
+        # H = W = int(np.sqrt(N))
+        H = self.H_resolution
+        W = self.W_resolution
         x = x.transpose(-2,-1).contiguous().view(B, C, H, W)
 
         H_sp, W_sp = self.H_sp, self.W_sp
@@ -134,7 +141,8 @@ class LePEAttention(nn.Module):
         q,k,v = qkv[0], qkv[1], qkv[2]
         
         ### Img2Window
-        H = W = self.resolution
+        H = self.H_resolution
+        W = self.W_resolution
         B, L, C = q.shape
         assert L == H * W, "flatten img_tokens has wrong size"
         
