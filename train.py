@@ -259,16 +259,16 @@ def save_checkpoint(state, is_best, filename):
 def parse_args(argv):
     parser = argparse.ArgumentParser(description="Example training script.")
     parser.add_argument(
-        "-l",
+        "-log",
         "--log_path",
-        default="/data4/suho/network_project/CSTF/logs",
+        default="./logs",
         type=str,
         help="log path"
     )
     parser.add_argument(
-        "-e"
+        "-exp",
         "--exp_name",
-        default='cstf_25'
+        default='cstf_25',
         type=str,
     )
     parser.add_argument(
@@ -423,7 +423,7 @@ def main(argv):
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     writer = SummaryWriter(log_dir=log_dir)
-
+    ############################## Tensorboard ##############################
 
     for epoch in tqdm(range(last_epoch, args.epochs)):
         print(f"Learning rate: {optimizer.param_groups[0]['lr']}")
