@@ -215,10 +215,10 @@ def test_epoch(epoch, test_dataloader, model, criterion):
             aux_loss.update(model.aux_loss())
             bpp_loss.update(out_criterion["bpp_loss"])
             loss.update(out_criterion["loss"])
-            if criterion.metric == "mse":
-                crit_loss.update(out_criterion["mse_loss"])
-            else:
+            if criterion.metric == ms_ssim:
                 crit_loss.update(out_criterion["ms_ssim_loss"])
+            else:
+                crit_loss.update(out_criterion["mse_loss"])
 
     print(
         f"Test epoch {epoch}: Average losses:"
