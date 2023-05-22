@@ -154,7 +154,7 @@ def configure_optimizers(net, args):
 
 
 def train_one_epoch(
-    model, criterion, train_dataloader, optimizer, aux_optimizer, epoch, clip_max_norm
+    model, criterion, train_dataloader, optimizer, aux_optimizer, epoch, clip_max_norm, writer
 ):
     model.train()
     device = next(model.parameters()).device
@@ -176,7 +176,7 @@ def train_one_epoch(
         aux_loss = model.aux_loss()
         aux_loss.backward()
         aux_optimizer.step()
-
+        
         if i % 100 == 0:
             if criterion.metric == ms_ssim:
                 print(
@@ -188,7 +188,18 @@ def train_one_epoch(
                     f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
                     f"\tAux loss: {aux_loss.item():.2f}"
                 )
+                writer.add_scalar("Loss/train", out_criterion["loss"].item(), epoch * len(train_dataloader) + i)
+                writer.add_scalar("Bpp/train", out_criterion["bpp_loss"].item(), epoch * len(train_dataloader) + i)
+                writer.add_scalar("MS-SSIM/train", out_criterion["ms_ssim_loss"].item(), epoch * len(train_dataloader) + i)
+                writer.add_scalar("Aux/train", aux_loss.item(), epoch * len(train_dataloader) + i)
+                
             else:
+                writer.add_scalar("Loss/train", out_criterion["loss"].item(), epoch * len(train_dataloader) + i)
+                writer.add_scalar("Bpp/train", out_criterion["bpp_loss"].item(), epoch * len(train_dataloader) + i)
+                writer.add_scalar("MSE/train", out_criterion["mse_loss"].item(), epoch * len(train_dataloader) + i)
+                writer.add_scalar("Aux/train", aux_loss.item(), epoch * len(train_dataloader) + i)
+                
+
                 print(
                     f"Train epoch {epoch}: ["
                     f"{i*len(d)}/{len(train_dataloader.dataset)}"
@@ -200,7 +211,7 @@ def train_one_epoch(
                 )
 
 
-def test_epoch(epoch, test_dataloader, model, criterion):
+def test_epoch(epoch, test_dataloader, model, criterion, writer):
     model.eval()
     device = next(model.parameters()).device
 
@@ -222,6 +233,11 @@ def test_epoch(epoch, test_dataloader, model, criterion):
                 crit_loss.update(out_criterion["ms_ssim_loss"])
             else:
                 crit_loss.update(out_criterion["mse_loss"])
+    
+    writer.add_scalar("Loss/test", loss.avg, epoch)
+    writer.add_scalar("Bpp/test", bpp_loss.avg, epoch)
+    writer.add_scalar("Crit/test", crit_loss.avg, epoch)
+    writer.add_scalar("Aux/test", aux_loss.avg, epoch)
 
     print(
         f"Test epoch {epoch}: Average losses:"
@@ -419,8 +435,9 @@ def main(argv):
             aux_optimizer,
             epoch,
             args.clip_max_norm,
+            writer,
         )
-        loss = test_epoch(epoch, test_dataloader, net, criterion)
+        loss = test_epoch(epoch, test_dataloader, net, criterion, writer)
         lr_scheduler.step(loss)
 
         is_best = loss < best_loss
