@@ -17,6 +17,9 @@ import math
 import random
 import shutil
 import sys
+import os 
+
+from torch.utils.tensorboard import SummaryWriter
 
 import torch
 import torch.nn as nn
@@ -240,6 +243,19 @@ def save_checkpoint(state, is_best, filename):
 def parse_args(argv):
     parser = argparse.ArgumentParser(description="Example training script.")
     parser.add_argument(
+        "-l",
+        "--log_path",
+        default="/data4/suho/network_project/CSTF/logs",
+        type=str,
+        help="log path"
+    )
+    parser.add_argument(
+        "-e"
+        "--exp_name",
+        default='cstf_25'
+        type=str,
+    )
+    parser.add_argument(
         "-m",
         "--model",
         default="stf",
@@ -385,6 +401,14 @@ def main(argv):
         lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
 
     best_loss = float("inf")
+
+    ############################## Tensorboard ##############################
+    log_dir = os.path.join(args.log_path, args.exp_name)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    writer = SummaryWriter(log_dir=log_dir)
+
+
     for epoch in tqdm(range(last_epoch, args.epochs)):
         print(f"Learning rate: {optimizer.param_groups[0]['lr']}")
         train_one_epoch(
@@ -401,7 +425,7 @@ def main(argv):
 
         is_best = loss < best_loss
         best_loss = min(loss, best_loss)
-
+        
         if args.save:
             save_checkpoint(
                 {
@@ -415,6 +439,8 @@ def main(argv):
                 is_best,
                 args.save_path,
             )
+
+    writer.close()
 
 
 if __name__ == "__main__":
