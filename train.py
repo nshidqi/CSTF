@@ -178,13 +178,13 @@ def train_one_epoch(
         aux_optimizer.step()
 
         if i % 100 == 0:
-            if criterion.metric == "mse":
+            if criterion.metric == ms_ssim:
                 print(
                     f"Train epoch {epoch}: ["
                     f"{i*len(d)}/{len(train_dataloader.dataset)}"
                     f" ({100. * i / len(train_dataloader):.0f}%)]"
                     f'\tLoss: {out_criterion["loss"].item():.3f} |'
-                    f'\tMSE loss: {out_criterion["mse_loss"].item() * 255 ** 2 / 3:.3f} |'
+                    f'\tMS-SSIM loss: {out_criterion["ms_ssim_loss"].item():.3f} |'
                     f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
                     f"\tAux loss: {aux_loss.item():.2f}"
                 )
@@ -194,7 +194,7 @@ def train_one_epoch(
                     f"{i*len(d)}/{len(train_dataloader.dataset)}"
                     f" ({100. * i / len(train_dataloader):.0f}%)]"
                     f'\tLoss: {out_criterion["loss"].item():.3f} |'
-                    f'\tMS-SSIM loss: {out_criterion["ms_ssim_loss"].item():.3f} |'
+                    f'\tMSE loss: {out_criterion["mse_loss"].item() * 255 ** 2 / 3:.3f} |'
                     f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
                     f"\tAux loss: {aux_loss.item():.2f}"
                 )
@@ -218,10 +218,10 @@ def test_epoch(epoch, test_dataloader, model, criterion):
             aux_loss.update(model.aux_loss())
             bpp_loss.update(out_criterion["bpp_loss"])
             loss.update(out_criterion["loss"])
-            if criterion.metric == "mse":
-                crit_loss.update(out_criterion["mse_loss"])
-            else:
+            if criterion.metric == ms_ssim:
                 crit_loss.update(out_criterion["ms_ssim_loss"])
+            else:
+                crit_loss.update(out_criterion["mse_loss"])
 
     print(
         f"Test epoch {epoch}: Average losses:"
