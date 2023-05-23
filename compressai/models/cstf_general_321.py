@@ -198,15 +198,17 @@ class SwinTransformerBlock(nn.Module):
 
         return x
 
-class Merge_Block(nn.Module):
-    def __init__(self, dim, dim_out, norm_layer=nn.LayerNorm):
+class PatchMerging(nn.Module):
+    def __init__(self, dim, norm_layer=nn.LayerNorm):
         super().__init__()
-        self.conv = nn.Conv2d(dim, dim_out, 3, 2, 1)
-        self.norm = norm_layer(dim_out)
+        self.conv = nn.Conv2d(dim, dim*2, 3, 2, 1)
+        self.norm = norm_layer(dim*2)
 
-    def forward(self, x):
-        B, new_HW, C = x.shape
-        H = W = int(np.sqrt(new_HW))
+    def forward(self, x, H, W):
+        # B, new_HW, C = x.shape
+        # H = W = int(np.sqrt(new_HW))
+        B, L, C = x.shape
+        assert L == H * W, "input feature has wrong size"
         x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
         x = self.conv(x)
         B, C = x.shape[:2]
@@ -215,7 +217,7 @@ class Merge_Block(nn.Module):
         
         return x
 
-class PatchMerging(nn.Module):
+class PatchMerging_2(nn.Module):
     def __init__(self, dim, norm_layer=nn.LayerNorm):
         super().__init__()
         self.dim = dim
@@ -250,8 +252,25 @@ class PatchMerging(nn.Module):
 
         return x
 
-
 class PatchSplit(nn.Module):
+    def __init__(self, dim, norm_layer=nn.LayerNorm):
+        super().__init__()
+        self.conv = nn.ConvTranspose2d(dim, dim//2, 3, 2, 1)
+        self.norm = norm_layer(dim//2)
+
+    def forward(self, x, H, W):
+        # B, new_HW, C = x.shape
+        # H = W = int(np.sqrt(new_HW))
+        B, L, C = x.shape
+        assert L == H * W, "input feature has wrong size"
+        x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
+        x = self.conv(x, output_size=(B, C//2, H*2, W*2))
+        B, C = x.shape[:2]
+        x = x.view(B, C, -1).transpose(-2, -1).contiguous()
+        x = self.norm(x)
+        
+        return x
+class PatchSplit_2(nn.Module):
     """ Patch Merging Layer
     Args:
         dim (int): Number of input channels.
@@ -399,7 +418,7 @@ class PatchEmbed(nn.Module):
         return x
 
 
-class SymmetricalTransFormer_cswin_general(CompressionModel):
+class SymmetricalTransFormer_cswin_general_321(CompressionModel):
     def __init__(self,
                  pretrain_img_size=256,
                  patch_size=2,
