@@ -18,4 +18,5 @@ from .cstf_simple import SymmetricalTransFormer_cswin_simple
 from .cstf_general import SymmetricalTransFormer_cswin_general
 from .cstf_general_321 import SymmetricalTransFormer_cswin_general_321
 from .cstf_general_321_embed_742 import SymmetricalTransFormer_cswin_general_321_embed_742  
+from .cstf_general_embed_742 import SymmetricalTransFormer_cswin_general_embed_742
 from .cnn import WACNN

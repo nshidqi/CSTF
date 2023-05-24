@@ -399,7 +399,7 @@ class PatchEmbed(nn.Module):
         return x
 
 
-class SymmetricalTransFormer_cswin_general(CompressionModel):
+class SymmetricalTransFormer_cswin_general_embed_742(CompressionModel):
     def __init__(self,
                  pretrain_img_size=256,
                  patch_size=2,

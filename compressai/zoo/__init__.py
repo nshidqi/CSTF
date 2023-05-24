@@ -20,6 +20,7 @@ from compressai.models import SymmetricalTransFormer_cswin_simple
 from compressai.models import SymmetricalTransFormer_cswin_general
 from compressai.models import SymmetricalTransFormer_cswin_general_321
 from compressai.models import SymmetricalTransFormer_cswin_general_321_embed_742
+from compressai.models import SymmetricalTransFormer_cswin_general_embed_742
 from .pretrained import load_pretrained as load_state_dict
 
 models = {
@@ -28,6 +29,7 @@ models = {
     'cstf_general': SymmetricalTransFormer_cswin_general,
     'cstf_general_321' : SymmetricalTransFormer_cswin_general_321,
     'cstf_general_321_embed_742' : SymmetricalTransFormer_cswin_general_321_embed_742,
+    'cstf_general_embed_742' : SymmetricalTransFormer_cswin_general_embed_742,
     'cnn': WACNN,
     
 }
