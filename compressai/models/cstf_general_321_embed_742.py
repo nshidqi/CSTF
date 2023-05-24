@@ -393,7 +393,7 @@ class PatchEmbed(nn.Module):
         self.in_chans = in_chans
         self.embed_dim = embed_dim
 
-        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=7, stride=patch_size, padding=2)
         if norm_layer is not None:
             self.norm = norm_layer(embed_dim)
         else:
@@ -418,7 +418,7 @@ class PatchEmbed(nn.Module):
         return x
 
 
-class SymmetricalTransFormer_cswin_general_321(CompressionModel):
+class SymmetricalTransFormer_cswin_general_321_embed_742(CompressionModel):
     def __init__(self,
                  pretrain_img_size=256,
                  patch_size=2,
