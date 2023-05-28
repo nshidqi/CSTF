@@ -59,6 +59,9 @@ class Mlp(nn.Module):
         return x
 
 class LePEAttention(nn.Module):
+    """
+    changed to RPE attention
+    """
     def __init__(self, dim, resolution, idx, split_size=7, dim_out=None, num_heads=8, attn_drop=0., proj_drop=0., qk_scale=None):
         super().__init__()
         self.dim = dim
