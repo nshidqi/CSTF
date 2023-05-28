@@ -85,6 +85,22 @@ class LePEAttention(nn.Module):
         
         self.attn_drop = nn.Dropout(attn_drop)
 
+        self.relative_position_bias_table = nn.Parameter(
+            torch.zeros((2 * H_sp - 1) * (2 * W_sp - 1), num_heads))  # 2*Wh-1 * 2*Ww-1, nH
+
+        # get pair-wise relative position index for each token inside the window
+        coords_h = torch.arange(self.H_sp)
+        coords_w = torch.arange(self.W_sp)
+        coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
+        coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
+        relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
+        relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
+        relative_coords[:, :, 0] += self.H_sp - 1  # shift to start from 0
+        relative_coords[:, :, 1] += self.W_sp - 1
+        relative_coords[:, :, 0] *= 2 * W_sp - 1
+        relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
+        self.register_buffer("relative_position_index", relative_position_index)
+        
     def im2cswin(self, x):
         B, N, C = x.shape
         H = W = int(np.sqrt(N))
@@ -121,14 +137,20 @@ class LePEAttention(nn.Module):
         
         q = self.im2cswin(q)
         k = self.im2cswin(k)
-        v, lepe = self.get_lepe(v, self.get_v)
+        # v, lepe = self.get_lepe(v, self.get_v)
+        v = self.im2cswin(v)
 
         q = q * self.scale
         attn = (q @ k.transpose(-2, -1))  # B head N C @ B head C N --> B head N N
+        relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
+            self.H_sp * self.W_sp, self.H_sp * self.W_sp, -1)  # Wh*Ww,Wh*Ww,nH
+        relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+        attn = attn + relative_position_bias.unsqueeze(0)
+
         attn = nn.functional.softmax(attn, dim=-1, dtype=attn.dtype)
         attn = self.attn_drop(attn)
 
-        x = (attn @ v) + lepe
+        x = (attn @ v) # + lepe
         x = x.transpose(1, 2).reshape(-1, self.H_sp* self.W_sp, C)  # B head N N @ B head N C
 
         ### Window2Img

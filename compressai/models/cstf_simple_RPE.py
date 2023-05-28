@@ -11,7 +11,7 @@ from compressai.ans import BufferedRansEncoder, RansDecoder
 from compressai.layers import conv3x3, subpel_conv3x3
 from compressai.ops import ste_round
 from .base import CompressionModel
-from .cswin import CSWinBlock 
+from .cswin_RPE import CSWinBlock 
 # From Balle's tensorflow compression examples
 SCALES_MIN = 0.11
 SCALES_MAX = 256
@@ -399,7 +399,7 @@ class PatchEmbed(nn.Module):
         return x
 
 
-class SymmetricalTransFormer_cswin_simple(CompressionModel):
+class SymmetricalTransFormer_cswin_simple_RPE(CompressionModel):
     def __init__(self,
                  pretrain_img_size=256,
                  patch_size=2,

@@ -223,6 +223,7 @@ class CSWinBlock(nn.Module):
         # print("H, W", H, W)
         B, L, C = x.shape
         # print("x.shape", x.shape)
+        # print("self.H_resolution, self.W_resolution", self.H_resolution, self.W_resolution)
         assert L == self.H_resolution * self.W_resolution, "flatten img_tokens has wrong size"
         img = self.norm1(x)
         qkv = self.qkv(img).reshape(B, -1, 3, C).permute(2, 0, 1, 3)
