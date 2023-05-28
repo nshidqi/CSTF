@@ -1,0 +1,21 @@
+{
+  "name": "ours-m321-e742",
+  "description": "Inference (ans)",
+  "results": {
+    "psnr-rgb": [
+      25.683
+    ],
+    "ms-ssim-rgb": [
+      0.9456
+    ],
+    "bpp": [
+      0.1202
+    ],
+    "encoding_time": [
+      0.2093
+    ],
+    "decoding_time": [
+      0.2237
+    ]
+  }
+}
