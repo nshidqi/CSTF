@@ -36,6 +36,12 @@ import compressai
 
 from compressai.zoo import load_state_dict, models
 
+# Socket
+import socket
+#from time import time
+import json
+import pickle
+
 torch.backends.cudnn.deterministic = True
 torch.set_num_threads(1)
 
@@ -80,7 +86,7 @@ def reconstruct(reconstruction, filename, recon_path):
 
 
 @torch.no_grad()
-def inference(model, x, filename, recon_path):
+def inference(model, x, filename, recon_path, socket_role):
     if not os.path.exists(recon_path):
         os.makedirs(recon_path)
 
@@ -106,6 +112,27 @@ def inference(model, x, filename, recon_path):
 
     enc_time = time.time() - start
     start = time.time()
+    
+    #### SOCKET-start
+    
+    if socket_role == 'client':
+        # Serialize data
+        data_serial = pickle.dumps(out_enc, -1) #data serialized
+        socket_client(data_serial)
+        
+        # recived local data
+        data_loaded = pickle.loads(data_serial) #data loaded
+        out_enc = data_loaded
+    elif socket_role == 'server':
+        data_received = socket_server()
+        
+        # recived cloud data
+        data_loaded = pickle.loads(data_received) #data loaded
+        out_enc = data_loaded
+    else: # offline compression
+        out_enc = out_enc
+    #### SOCKET-end
+    
     out_dec = model.decompress(out_enc["strings"], out_enc["shape"])
     dec_time = time.time() - start
 
@@ -152,7 +179,7 @@ def load_checkpoint(arch: str, checkpoint_path: str) -> nn.Module:
     return models[arch].from_state_dict(state_dict).eval()
 
 
-def eval_model(model, filepaths, entropy_estimation=False, half=False, recon_path='reconstruction'):
+def eval_model(model, filepaths, entropy_estimation=False, half=False, recon_path='reconstruction', socket_role='none'):
     device = next(model.parameters()).device
     metrics = defaultdict(float)
     for f in filepaths:
@@ -163,7 +190,7 @@ def eval_model(model, filepaths, entropy_estimation=False, half=False, recon_pat
             if half:
                 model = model.half()
                 x = x.half()
-            rv = inference(model, x, _filename, recon_path)
+            rv = inference(model, x, _filename, recon_path, socket_role)
         else:
             rv = inference_entropy_estimation(model, x)
         for k, v in rv.items():
@@ -173,11 +200,75 @@ def eval_model(model, filepaths, entropy_estimation=False, half=False, recon_pat
 
     return metrics
 
+def socket_server():
+    # Initialize Socket Instance
+    sock = socket.socket()
+    print ("Socket created successfully.")
+
+    # Defining port and host
+    port = 8800
+    host = ''
+
+    # binding to the host and port
+    sock.bind((host, port))
+
+    # Accepts up to 10 connections
+    sock.listen(10)
+    print('Socket is listening...')
+
+    # Establish connection with the clients.
+    con, addr = sock.accept()
+    print('Connected with ', addr)
+
+    # Get data from the client
+    #data = con.recv(1024)
+    #print(data.decode())
+    
+    # Receive the data
+    data = b''
+    while True:
+        chunk = con.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    
+    print('Time:')
+    print(f"{time.time()}\n")
+
+    con.close()
+    sock.close()
+    
+    return data
+    
+def socket_client(data):
+    # Initialize Socket Instance
+    sock = socket.socket()
+    print ("Socket created successfully.")
+
+    # Defining port and host
+    port = 8800
+    host = 'localhost'
+
+    # Connect socket to the host and port
+    sock.connect((host, port))
+    print('Connection Established.')
+    # Send a greeting to the server
+    #sock.send('A message from the client'.encode())
+
+    # Send data
+    print('Time:')
+    print(f"{time.time()}\n")
+    sock.send(data)
+
+    sock.close()
+    print('Connection Closed.')
+    
 
 def setup_args():
     parent_parser = argparse.ArgumentParser()
 
     # Common options.
+    parent_parser.add_argument("--socket_role", type=str, help="socket role {server, client, none}")
     parent_parser.add_argument("-d", "--dataset", type=str, help="dataset path")
     parent_parser.add_argument("-r", "--recon_path", type=str, default="reconstruction", help="where to save recon img")
     parent_parser.add_argument(
@@ -255,7 +346,7 @@ def main(argv):
 
         model.update(force=True)
 
-        metrics = eval_model(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
+        metrics = eval_model(model, filepaths, args.entropy_estimation, args.half, args.recon_path, args.socket_role)
         for k, v in metrics.items():
             results[k].append(v)
 
