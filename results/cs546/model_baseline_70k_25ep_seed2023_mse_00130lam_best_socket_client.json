@@ -1,0 +1,27 @@
+Socket created successfully.
+Connection Established.
+Time:
+1685314047.3071012
+
+Connection Closed.
+{
+  "name": "stf",
+  "description": "Inference (ans)",
+  "results": {
+    "psnr": [
+      34.74094338917964
+    ],
+    "ms-ssim": [
+      0.9860340356826782
+    ],
+    "bpp": [
+      0.3490397135416667
+    ],
+    "encoding_time": [
+      3.184593915939331
+    ],
+    "decoding_time": [
+      0.21501731872558594
+    ]
+  }
+}

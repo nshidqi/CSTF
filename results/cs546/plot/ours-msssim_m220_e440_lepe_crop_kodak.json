@@ -1,0 +1,26 @@
+{
+  "name": "ours-m220-e440-lepe-crop",
+  "description": "Inference (ans)",
+  "results": {
+    "psnr-rgb": [
+      25.589,
+      26.261
+    ],
+    "ms-ssim-rgb": [
+      0.949,
+      0.9631
+    ],
+    "bpp": [
+      0.1376,
+      0.2029
+    ],
+    "encoding_time": [
+      0.1315,
+      0.1377
+    ],
+    "decoding_time": [
+      0.1347,
+      0.1422
+    ]
+  }
+}
