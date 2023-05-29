@@ -95,7 +95,7 @@ CUDA_VISIBLE_DEVICES=3,4 python train.py -d datasets/openimages/ -e 25 --batch-s
 
 ## Evaluation
 
-We use `compressai.utils.eval_model` for training the models.
+We use `compressai.utils.eval_model` for evaluating the models.
 
 ```bash
 usage: __main__.py [-h] [--socket_role SOCKET_ROLE] [-d DATASET]
