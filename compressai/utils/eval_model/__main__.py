@@ -72,9 +72,11 @@ def psnr(a: torch.Tensor, b: torch.Tensor) -> float:
     return -10 * math.log10(mse)
 
 
-def read_image(filepath: str) -> torch.Tensor:
+def read_image(filepath: str, do_crop) -> torch.Tensor:
     assert os.path.isfile(filepath)
     img = Image.open(filepath).convert("RGB")
+    if do_crop :
+        img = transforms.CenterCrop((256, 256))(img)
     return transforms.ToTensor()(img)
 
 
@@ -179,13 +181,13 @@ def load_checkpoint(arch: str, checkpoint_path: str) -> nn.Module:
     return models[arch].from_state_dict(state_dict).eval()
 
 
-def eval_model(model, filepaths, entropy_estimation=False, half=False, recon_path='reconstruction', socket_role='none'):
+def eval_model(model, filepaths, entropy_estimation=False, half=False, recon_path='reconstruction', do_crop=False, socket_role='none'):
     device = next(model.parameters()).device
     metrics = defaultdict(float)
     for f in filepaths:
         _filename = f.split("/")[-1]
 
-        x = read_image(f).to(device)
+        x = read_image(f,do_crop).to(device)
         if not entropy_estimation:
             if half:
                 model = model.half()
@@ -316,6 +318,11 @@ def setup_args():
             required=True,
             help="checkpoint path",
         )
+    parent_parser.add_argument(
+            "--crop",
+            action="store_true",
+            help="center crop 256 256 to test",
+        )
     return parent_parser
 
 
@@ -346,7 +353,7 @@ def main(argv):
 
         model.update(force=True)
 
-        metrics = eval_model(model, filepaths, args.entropy_estimation, args.half, args.recon_path, args.socket_role)
+        metrics = eval_model(model, filepaths, args.entropy_estimation, args.half, args.recon_path, args.crop, args.socket_role)
         for k, v in metrics.items():
             results[k].append(v)
 

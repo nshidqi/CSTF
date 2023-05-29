@@ -15,9 +15,27 @@
 
 from compressai.models import SymmetricalTransFormer, WACNN
 
+#### added ####
+from compressai.models import SymmetricalTransFormer_cswin_simple
+from compressai.models import SymmetricalTransFormer_cswin_general
+from compressai.models import SymmetricalTransFormer_cswin_general_321
+from compressai.models import SymmetricalTransFormer_cswin_general_321_embed_742
+from compressai.models import SymmetricalTransFormer_cswin_general_embed_742
+from compressai.models import SymmetricalTransFormer_cswin_simple_RPE
+from compressai.models import SymmetricalTransFormer_cswin_general_window_2_2_2_2
+from compressai.models import SymmetricalTransFormer_cswin_general_window_4_4_4_4
 from .pretrained import load_pretrained as load_state_dict
 
 models = {
     'stf': SymmetricalTransFormer,
+    'cstf_simple': SymmetricalTransFormer_cswin_simple,
+    'cstf_general': SymmetricalTransFormer_cswin_general,
+    'cstf_general_321' : SymmetricalTransFormer_cswin_general_321,
+    'cstf_general_321_embed_742' : SymmetricalTransFormer_cswin_general_321_embed_742,
+    'cstf_general_embed_742' : SymmetricalTransFormer_cswin_general_embed_742,
+    'cstf_simple_RPE' : SymmetricalTransFormer_cswin_simple_RPE,
+    'cstf_general_window_2_2_2_2' : SymmetricalTransFormer_cswin_general_window_2_2_2_2,
+    'cstf_general_window_4_4_4_4' : SymmetricalTransFormer_cswin_general_window_4_4_4_4,
     'cnn': WACNN,
+    
 }

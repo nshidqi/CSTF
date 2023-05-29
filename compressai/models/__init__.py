@@ -14,4 +14,12 @@
 
 
 from .stf import SymmetricalTransFormer
+from .cstf_simple import SymmetricalTransFormer_cswin_simple
+from .cstf_general import SymmetricalTransFormer_cswin_general
+from .cstf_general_321 import SymmetricalTransFormer_cswin_general_321
+from .cstf_general_321_embed_742 import SymmetricalTransFormer_cswin_general_321_embed_742  
+from .cstf_general_embed_742 import SymmetricalTransFormer_cswin_general_embed_742
+from .cstf_simple_RPE import SymmetricalTransFormer_cswin_simple_RPE
+from .cstf_general import SymmetricalTransFormer_cswin_general_window_2_2_2_2
+from .cstf_general import SymmetricalTransFormer_cswin_general_window_4_4_4_4
 from .cnn import WACNN
