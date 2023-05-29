@@ -1,125 +1,152 @@
-# The Devil Is in the Details: Window-based Attention for Image Compression
-Pytorch implementation of the paper "The Devil Is in the Details: Window-based Attention for Image Compression". CVPR2022.
-This repository is based on [CompressAI](https://github.com/InterDigitalInc/CompressAI). We kept scripts for training and evaluation, and removed other components. The major changes are provided in `compressai/models`. For the official code release, see the [CompressAI](https://github.com/InterDigitalInc/CompressAI).
+# Deep Learning-Based Image Compression and Transmission for Improved Quality and Reduced Bandwidth Requirements
+
+Authors: Suho Yang & Naufal Shidqi
 
 ## About
-This repo defines the CNN-based models and Transformer-based models for learned image compression in "The Devil Is in the Details: Window-based Attention for Image Compression".
-
-
-![cnn_arch](https://github.com/Googolxx/STF/blob/main/assets/cnn_arch.png)
->  The architecture of CNN-based model.
-
-![stf_arch](https://github.com/Googolxx/STF/blob/main/assets/stf_arch.png)
->  The architecture of Transformer-based model (STF).
+Pytorch implementation of KAIST Spring 2023 CS546 - Wireless Mobile Internet and Security final project.
+This repository is based on [CompressAI](https://github.com/InterDigitalInc/CompressAI) and [STF](https://github.com/Googolxx/STF). 
+We modify the evaluation scripts for transmitting through Socket API.
+Our proposed models (CSTF) are provided in `compressai/models`.
 
 
 ## Installation
 
 Install [CompressAI](https://github.com/InterDigitalInc/CompressAI) and the packages required for development.
+Make sure you have gcc with c++17 installed.
 ```bash
+# Install libraries
 conda create -n compress python=3.7
 conda activate compress
 pip install compressai
 pip install pybind11
-git clone https://github.com/Googolxx/STF stf
-cd stf
+pip install torchinfo
+pip install tensorboard
+
+# Clone repository and install CompressAI environment packages
+git clone https://github.com/nshidqi/CSTF.git cstf
+cd cstf
 pip install -e .
 pip install -e '.[dev]'
 ```
 
-> **Note**: wheels are available for Linux and MacOS.
+## Dataset
+The script for downloading [OpenImages](https://github.com/openimages) is provided in `downloader_openimages.py`. Please install [fiftyone](https://github.com/voxel51/fiftyone) first. For Kodak image dataset, can be downloaded [here](http://r0k.us/graphics/kodak/).
 
-## Usage
-
-### Training
-An examplary training script with a rate-distortion loss is provided in
-`train.py`. 
-
-Training a CNN-based model:
+## Training
+We use `train.py` for training the models.
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 python train.py -d /path/to/image/dataset/ -e 1000 --batch-size 16 --save --save_path /path/to/save/ -m cnn --cuda --lambda 0.0035
-e.g., CUDA_VISIBLE_DEVICES=0,1 python train.py -d openimages -e 1000 --batch-size 16 --save --save_path ckpt/cnn_0035.pth.tar -m cnn --cuda --lambda 0.0035
+usage: train.py [-h] [-log LOG_PATH] [-exp EXP_NAME]
+                [-m {stf,cstf_simple,cstf_general,cstf_general_321,cstf_general_321_embed_742,cstf_general_embed_742,cstf_simple_RPE,cstf_general_window_2_2_2_2,cstf_general_window_4_4_4_4,cnn}]
+                -d DATASET [-e EPOCHS] [-lr LEARNING_RATE] [-n NUM_WORKERS]
+                [--loss LOSS] [--lambda LMBDA] [--batch-size BATCH_SIZE]
+                [--test-batch-size TEST_BATCH_SIZE]
+                [--aux-learning-rate AUX_LEARNING_RATE]
+                [--patch-size PATCH_SIZE PATCH_SIZE] [--cuda] [--save]
+                [--save_path SAVE_PATH] [--seed SEED]
+                [--clip_max_norm CLIP_MAX_NORM] [--checkpoint CHECKPOINT]
+
+Example training script.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -log LOG_PATH, --log_path LOG_PATH
+                        log path
+  -exp EXP_NAME, --exp_name EXP_NAME
+  -m {stf,cstf_simple,cstf_general,cstf_general_321,cstf_general_321_embed_742,cstf_general_embed_742,cstf_simple_RPE,cstf_general_window_2_2_2_2,cstf_general_window_4_4_4_4,cnn}, --model {stf,cstf_simple,cstf_general,cstf_general_321,cstf_general_321_embed_742,cstf_general_embed_742,cstf_simple_RPE,cstf_general_window_2_2_2_2,cstf_general_window_4_4_4_4,cnn}
+                        Model architecture (default: stf)
+  -d DATASET, --dataset DATASET
+                        Training dataset
+  -e EPOCHS, --epochs EPOCHS
+                        Number of epochs (default: 100)
+  -lr LEARNING_RATE, --learning-rate LEARNING_RATE
+                        Learning rate (default: 0.0001)
+  -n NUM_WORKERS, --num-workers NUM_WORKERS
+                        Dataloaders threads (default: 30)
+  --loss LOSS           Criterion Loss Function (default: mse)
+  --lambda LMBDA        Bit-rate distortion parameter (default: 0.01)
+  --batch-size BATCH_SIZE
+                        Batch size (default: 16)
+  --test-batch-size TEST_BATCH_SIZE
+                        Test batch size (default: 64)
+  --aux-learning-rate AUX_LEARNING_RATE
+                        Auxiliary loss learning rate (default: 0.001)
+  --patch-size PATCH_SIZE PATCH_SIZE
+                        Size of the patches to be cropped (default: (256,
+                        256))
+  --cuda                Use cuda
+  --save                Save model to disk
+  --save_path SAVE_PATH
+                        Where to Save model
+  --seed SEED           Set random seed for reproducibility
+  --clip_max_norm CLIP_MAX_NORM
+                        gradient clipping max norm (default: 1.0
+  --checkpoint CHECKPOINT
+                        Path to a checkpoint
 ```
-Training a Transformer-based model(STF):
+
+### Example of training baseline model:
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 python train.py -d /path/to/image/dataset/ -e 1000 --batch-size 16 --save --save_path /path/to/save/ -m stf --cuda --lambda 0.0035
+CUDA_VISIBLE_DEVICES=2,3 python train.py -d datasets/openimages/ -e 25 --batch-size 16 --save --save_path checkpoints/demo_baseline.pth.tar -m stf --cuda --lambda 4.58 --loss ms-ssim --seed 2023
+```
+### Example of training our model:
+```bash
+CUDA_VISIBLE_DEVICES=3,4 python train.py -d datasets/openimages/ -e 25 --batch-size 16 --save --save_path ./checkpoints/demo_ours.pth.tar -m cstf_general_321 --cuda --lambda 4.58 --loss ms-ssim --seed 2023
 ```
 
+## Evaluation
 
-### Evaluation
-
-To evaluate a trained model on your own dataset, the evaluation script is:
+We use `compressai.utils.eval_model` for training the models.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python -m compressai.utils.eval_model -d /path/to/image/folder/ -r /path/to/reconstruction/folder/ -a stf -p /path/to/checkpoint/ --cuda
+usage: __main__.py [-h] [--socket_role SOCKET_ROLE] [-d DATASET]
+                   [-r RECON_PATH] -a
+                   {stf,cstf_simple,cstf_general,cstf_general_321,cstf_general_321_embed_742,cstf_general_embed_742,cstf_simple_RPE,cstf_general_window_2_2_2_2,cstf_general_window_4_4_4_4,cnn}
+                   [-c {ans}] [--cuda] [--half] [--entropy-estimation] [-v] -p
+                   [PATHS [PATHS ...]] [--crop]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --socket_role SOCKET_ROLE
+                        socket role {server, client, none}
+  -d DATASET, --dataset DATASET
+                        dataset path
+  -r RECON_PATH, --recon_path RECON_PATH
+                        where to save recon img
+  -a {stf,cstf_simple,cstf_general,cstf_general_321,cstf_general_321_embed_742,cstf_general_embed_742,cstf_simple_RPE,cstf_general_window_2_2_2_2,cstf_general_window_4_4_4_4,cnn}, --architecture {stf,cstf_simple,cstf_general,cstf_general_321,cstf_general_321_embed_742,cstf_general_embed_742,cstf_simple_RPE,cstf_general_window_2_2_2_2,cstf_general_window_4_4_4_4,cnn}
+                        model architecture
+  -c {ans}, --entropy-coder {ans}
+                        entropy coder (default: ans)
+  --cuda                enable CUDA
+  --half                convert model to half floating point (fp16)
+  --entropy-estimation  use evaluated entropy estimation (no entropy coding)
+  -v, --verbose         verbose mode
+  -p [PATHS [PATHS ...]], --path [PATHS [PATHS ...]]
+                        checkpoint path
+  --crop                center crop 256 256 to test
 ```
+### Example of evaluating model without socket (offline compression-decompression)
 ```bash
-CUDA_VISIBLE_DEVICES=0 python -m compressai.utils.eval_model -d /path/to/image/folder/ -r /path/to/reconstruction/folder/ -a cnn -p /path/to/checkpoint/ --cuda
+CUDA_VISIBLE_DEVICES=3 python -m compressai.utils.eval_model -d datasets/kodak_1/ -r reconstruction/output_image_baseline/ -a stf -p checkpoints/demo_baseline.pth.tar --cuda --socket_role none
+```
+
+### Example of evaluating model with socket API (online compression-decompression)
+First, run this command in a device as server (receive and decompress):
+```bash
+CUDA_VISIBLE_DEVICES=3 python -m compressai.utils.eval_model -d datasets/kodak_1/ -r reconstruction/output_image_baseline/ -a stf -p checkpoints/demo_baseline.pth.tar --cuda --socket_role server
+```
+Second, run this command in a device as client (compress and transmit):
+```bash
+CUDA_VISIBLE_DEVICES=3 python -m compressai.utils.eval_model -d datasets/kodak_1/ -r reconstruction/output_image_baseline/ -a stf -p checkpoints/demo_baseline.pth.tar --cuda --socket_role server
 ```
 
 
-### Dataset
-The script for downloading [OpenImages](https://github.com/openimages) is provided in `downloader_openimages.py`. Please install [fiftyone](https://github.com/voxel51/fiftyone) first.
-
-## Results
-
-### Visualization
-
-![visualization01](https://github.com/Googolxx/STF/blob/main/assets/detail_01.png)
->  Visualization of the reconstructed image kodim01.png.
-
-![visualization07](https://github.com/Googolxx/STF/blob/main/assets/detail_07.png)
->  Visualization of the reconstructed image kodim07.png.
->
-### RD curves
-
-![kodak_rd](https://github.com/Googolxx/STF/blob/main/assets/kodak_rd.png)
->  RD curves on [Kodak](http://r0k.us/graphics/kodak/).
-
-![clic_rd](https://github.com/Googolxx/STF/blob/main/assets/clic_rd.png)
->  RD curves on [CLIC Professional Validation dataset](https://www.compression.cc/).
-
-### Codec Efficiency on [Kodak](http://r0k.us/graphics/kodak/)
-| Method | Enc(s) | Dec(s) | PSNR | bpp |
-| ------------ | ------ | ------ | ------ | ------ |
-| CNN | 0.12 | 0.12 | 35.91 | 0.650 |
-| STF | 0.15 | 0.15 | 35.82 | 0.651 |
-
-### Pretrained Models
-Pretrained models (optimized for MSE) trained from scratch using randomly chose 300k images from the OpenImages dataset.
-
-| Method | Lambda | Link                                                                                              |
-| ---- |--------|---------------------------------------------------------------------------------------------------|
-| CNN | 0.0018 | [cnn_0018](https://drive.google.com/file/d/1RPdtyxTtfosuDe1-xtl5JzvnCU2vYnHD/view?usp=sharing)    |
-| CNN | 0.0035 | [cnn_0035](https://drive.google.com/file/d/1L7xvei3Wj4BeSQ3lDBL-pyjEy13RKsjn/view?usp=sharing)    |
-| CNN | 0.0067 | [cnn_0067](https://drive.google.com/file/d/1DDCFFWBUa5cYOgJ9D9HPcwoOigzoJK31/view?usp=sharing)    |
-| CNN | 0.025  | [cnn_025](https://drive.google.com/file/d/1LrAWPlBE6WJUfjiDPGFO8ANSaP5BFEQI/view?usp=sharing)     |
-| STF | 0.0018 | [stf_0018](https://drive.google.com/file/d/15ujpSjif628iwVEay3mAWN-Vyqls3r23/view?usp=sharing) |
-| STF | 0.0035 | [stf_0035](https://drive.google.com/file/d/1OFzZoEaofNgsimBuOPHtgOJiGsR_RS-M/view?usp=sharing)    |
-| STF | 0.0067 | [stf_0067](https://drive.google.com/file/d/1SjhqcKyP3SqVm4yhJQslJ6HgY1E8FcBL/view?usp=share_link) |
-| STF | 0.013  | [stf_013](https://drive.google.com/file/d/1mupv4vcs8wpNdXCPclXghliikJyYjgj-/view?usp=share_link)  |
-| STF | 0.025  | [stf_025](https://drive.google.com/file/d/1rsYgEYuqSYBIA4rfvAjXtVSrjXOzkJlB/view?usp=sharing)     |
-| STF | 0.0483 | [stf_0483](https://drive.google.com/file/d/1cH5cR-0VdsQqCchyN3DO62Sx0WGjv1h8/view?usp=share_link) |
-
-Other pretrained models will be released successively.
-## Citation
-```
-@inproceedings{zou2022the,
-  title={The Devil Is in the Details: Window-based Attention for Image Compression},
-  author={Zou, Renjie and Song, Chunfeng and Zhang, Zhaoxiang},
-  booktitle={CVPR},
-  year={2022}
-}
-```
 
 ## Related links
  * CompressAI: https://github.com/InterDigitalInc/CompressAI
  * Swin-Transformer: https://github.com/microsoft/Swin-Transformer
- * Tensorflow compression library by Ballé et al.: https://github.com/tensorflow/compression
+ * Symmetrical Transformer: https://github.com/Googolxx/STF
+ * CSwin-Transformer: https://github.com/microsoft/CSWin-Transformer
  * Range Asymmetric Numeral System code from Fabian 'ryg' Giesen: https://github.com/rygorous/ryg_rans
  * Kodak Images Dataset: http://r0k.us/graphics/kodak/
  * Open Images Dataset: https://github.com/openimages
  * fiftyone: https://github.com/voxel51/fiftyone
- * CLIC: https://www.compression.cc/
-
-
