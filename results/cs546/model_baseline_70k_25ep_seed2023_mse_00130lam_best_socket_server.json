@@ -1,9 +1,3 @@
-Socket created successfully.
-Socket is listening...
-Connected with  ('127.0.0.1', 48526)
-Time:
-1685314047.3073776
-
 {
   "name": "stf",
   "description": "Inference (ans)",
@@ -18,10 +12,10 @@ Time:
       0.3490397135416667
     ],
     "encoding_time": [
-      3.753411054611206
+      2.390310525894165
     ],
     "decoding_time": [
-      117.67555117607117
+      0.319141149520874
     ]
   }
 }
